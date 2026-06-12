@@ -1,0 +1,32 @@
+# Build
+build/
+cmake-build-*/
+*.o
+*.obj
+*.exe
+*.out
+tdesktop
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config
+config/tdesktop.local.conf
+
+# Logs
+*.log
+/tmp/tdesktop.log
+
+# Packaging
+*.deb
+*.rpm
+*.tar.gz
+*.zip

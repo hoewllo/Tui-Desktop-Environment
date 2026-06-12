@@ -1,0 +1,21 @@
+{
+    "name": "dark",
+    "description": "Dark theme with minimal contrast",
+    "colors": {
+        "background": [8, 8, 8],
+        "foreground": [150, 150, 150],
+        "titlebar_bg": [20, 20, 30],
+        "titlebar_fg": [200, 200, 200],
+        "titlebar_focused_bg": [40, 40, 60],
+        "titlebar_focused_fg": [220, 220, 220],
+        "taskbar_bg": [20, 20, 30],
+        "taskbar_fg": [150, 150, 150],
+        "selection_bg": [60, 60, 80],
+        "selection_fg": [200, 200, 200],
+        "border": [60, 60, 60],
+        "scrollbar": [60, 60, 60],
+        "error": [200, 30, 30],
+        "success": [30, 200, 30],
+        "warning": [200, 200, 30]
+    }
+}

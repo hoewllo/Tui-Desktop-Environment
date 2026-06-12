@@ -1,0 +1,21 @@
+{
+    "name": "default",
+    "description": "Default blue-on-black theme",
+    "colors": {
+        "background": [0, 0, 0],
+        "foreground": [192, 192, 192],
+        "titlebar_bg": [0, 0, 128],
+        "titlebar_fg": [255, 255, 255],
+        "titlebar_focused_bg": [0, 0, 200],
+        "titlebar_focused_fg": [255, 255, 255],
+        "taskbar_bg": [0, 0, 128],
+        "taskbar_fg": [255, 255, 255],
+        "selection_bg": [255, 255, 255],
+        "selection_fg": [0, 0, 0],
+        "border": [128, 128, 128],
+        "scrollbar": [128, 128, 128],
+        "error": [255, 0, 0],
+        "success": [0, 255, 0],
+        "warning": [255, 255, 0]
+    }
+}

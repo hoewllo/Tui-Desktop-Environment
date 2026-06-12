@@ -1,0 +1,21 @@
+{
+    "name": "hacker",
+    "description": "Green-on-black hacker theme",
+    "colors": {
+        "background": [0, 0, 0],
+        "foreground": [0, 255, 0],
+        "titlebar_bg": [0, 30, 0],
+        "titlebar_fg": [0, 255, 0],
+        "titlebar_focused_bg": [0, 60, 0],
+        "titlebar_focused_fg": [0, 255, 0],
+        "taskbar_bg": [0, 20, 0],
+        "taskbar_fg": [0, 200, 0],
+        "selection_bg": [0, 255, 0],
+        "selection_fg": [0, 0, 0],
+        "border": [0, 100, 0],
+        "scrollbar": [0, 100, 0],
+        "error": [255, 0, 0],
+        "success": [0, 255, 0],
+        "warning": [255, 255, 0]
+    }
+}
