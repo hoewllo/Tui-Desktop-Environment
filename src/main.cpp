@@ -17,6 +17,8 @@
 #include <cstring>
 #include <unistd.h>
 #include <pwd.h>
+#include <pty.h>
+#include <sys/wait.h>
 
 using namespace tdesktop;
 
@@ -29,6 +31,8 @@ struct Options {
     bool show_help = false;
     bool auto_login = false;
     std::string auto_user;
+    bool cli_user = false;
+    std::string cli_password;
     std::string config_path;
     std::string theme;
 };
@@ -47,11 +51,31 @@ static Options parseArgs(int argc, char* argv[]) {
         else if (arg == "--force-mouse") opts.force_mouse = true;
         else if (arg == "--check-env") opts.check_env = true;
         else if (arg == "--reset-config") opts.reset_config = true;
+        else if (arg.find("--auto-login=") == 0) {
+            opts.auto_login = true;
+            opts.auto_user = arg.substr(13);
+        }
         else if (arg == "--auto-login" && i + 1 < argc) {
             opts.auto_login = true;
             opts.auto_user = argv[++i];
         }
+        else if (arg.find("--user=") == 0) {
+            opts.cli_user = true;
+            opts.auto_user = arg.substr(7);
+        }
+        else if (arg == "--user" && i + 1 < argc) {
+            opts.cli_user = true;
+            opts.auto_user = argv[++i];
+        }
+        else if (arg.find("--password=") == 0) {
+            opts.cli_password = arg.substr(11);
+        }
+        else if (arg == "--password" && i + 1 < argc) {
+            opts.cli_password = argv[++i];
+        }
+        else if (arg.find("--config=") == 0) opts.config_path = arg.substr(9);
         else if (arg == "--config" && i + 1 < argc) opts.config_path = argv[++i];
+        else if (arg.find("--theme=") == 0) opts.theme = arg.substr(8);
         else if (arg == "--theme" && i + 1 < argc) opts.theme = argv[++i];
     }
     return opts;
@@ -70,6 +94,8 @@ Options:
   --version, -v       Show version info
   --check-env         Check terminal environment compatibility
   --auto-login=USER   Skip login, log in as USER directly
+  --user=USER         Login as USER (uses --password for auth)
+  --password=PASS     Password for --user
   --config=FILE       Specify config file path
   --theme=NAME        Specify theme name
   --debug             Enable debug logging
@@ -94,6 +120,44 @@ static void checkEnvironment() {
 
 static bool checkRoot() {
     return geteuid() == 0;
+}
+
+// Verify password by running `su -c true user` via forkpty.
+// Works for non-root callers authenticating as any user.
+static bool verifyViaSu(const std::string& user, const std::string& pass) {
+    int master;
+    pid_t pid = forkpty(&master, nullptr, nullptr, nullptr);
+    if (pid < 0) {
+        LOG_ERROR("forkpty failed");
+        return false;
+    }
+
+    if (pid == 0) {
+        // Child: ensure su is found, use explicit /bin/su
+        execl("/bin/su", "su", user.c_str(), "-c", "true", nullptr);
+        // If execl fails
+        _exit(2);
+    }
+
+    // Give su a moment to start and prompt for password
+    usleep(300000);
+    std::string input = pass + "\n";
+    [[maybe_unused]] ssize_t _ = write(master, input.data(), input.size());
+
+    int status;
+    pid_t w = waitpid(pid, &status, 0);
+    ::close(master);
+
+    if (w < 0) {
+        LOG_ERROR("waitpid failed");
+        return false;
+    }
+    if (!WIFEXITED(status)) {
+        LOG_WARN("su did not exit normally, signal=" + std::to_string(WTERMSIG(status)));
+        return false;
+    }
+    int code = WEXITSTATUS(status);
+    return code == 0;
 }
 
 int main(int argc, char* argv[]) {
@@ -155,55 +219,81 @@ int main(int argc, char* argv[]) {
     LoginResult login_result = LoginResult::Success;
     std::string username;
 
+    LoginScreen login(term, colors);
+    PAMAuth pam;
+    ShadowAuth shadow;
+    bool use_shadow = false;
+
+    bool pam_ok = pam.init();
+    if (pam_ok) {
+        LOG_INFO("Using PAM authentication");
+    } else if (shadow.isAvailable()) {
+        use_shadow = true;
+        LOG_INFO("PAM unavailable, using shadow authentication");
+    } else {
+        LOG_ERROR("No authentication method available (PAM config missing, shadow not readable)");
+        std::cerr << "No authentication method available." << std::endl;
+        term.restore();
+        return 1;
+    }
+
     if (opts.auto_login) {
+        login_result = LoginResult::Success;
         username = opts.auto_user;
         LOG_INFO("Auto-login as: " + username);
-    } else if (checkRoot()) {
-        // Root can skip login
-        username = "root";
-        LOG_INFO("Running as root, skipping login");
-    } else {
-        LoginScreen login(term, colors);
-        PAMAuth pam;
-        ShadowAuth shadow;
-        bool use_shadow = false;
-
-        if (pam.init()) {
-            LOG_INFO("Using PAM authentication");
-        } else if (shadow.isAvailable()) {
-            use_shadow = true;
-            LOG_INFO("PAM unavailable, using shadow authentication");
-        }
-
-        login_result = login.run();
-
-        while (login_result == LoginResult::Failed && login.getAttempts() < 3) {
-            login_result = login.run();
-        }
-
-        if (login_result == LoginResult::Quit) {
-            term.restore();
-            return 0;
-        }
-
-        username = login.getUsername();
-        std::string password = login.getPassword();
-
-        bool auth_ok = false;
-        if (use_shadow) {
-            auth_ok = shadow.authenticate(username, password);
+    } else if (opts.cli_user) {
+        username = opts.auto_user;
+        bool auth_ok = verifyViaSu(username, opts.cli_password);
+        if (auth_ok) {
+            LOG_INFO("User logged in: " + username);
         } else {
-            auth_ok = pam.authenticate(username, password);
-        }
-
-        if (!auth_ok) {
             term.restore();
             LOG_ERROR("Authentication failed for user: " + username);
             std::cerr << "Authentication failed." << std::endl;
             return 1;
         }
+    } else {
+        int attempts = 0;
+        do {
+            login_result = login.run();
 
-        LOG_INFO("User logged in: " + username);
+            if (login_result == LoginResult::Quit) {
+                term.restore();
+                return 0;
+            }
+
+            if (login_result == LoginResult::Success) {
+                username = login.getUsername();
+                std::string password = login.getPassword();
+                attempts++;
+
+                bool auth_ok = false;
+                if (use_shadow) {
+                    auth_ok = shadow.authenticate(username, password);
+                } else {
+                    auth_ok = pam.authenticate(username, password);
+                }
+                if (!auth_ok) {
+                    LOG_WARN("Primary auth failed for: " + username + ", trying su fallback");
+                    auth_ok = verifyViaSu(username, password);
+                }
+
+                if (auth_ok) {
+                    LOG_INFO("User logged in: " + username);
+                    break;
+                }
+
+                login_result = LoginResult::Failed;
+                LOG_WARN("Authentication failed for user: " + username);
+                login.setError("Authentication failed. Try again.");
+            }
+        } while (attempts < 3);
+
+        if (login_result != LoginResult::Success) {
+            term.restore();
+            std::cerr << "Authentication failed after 3 attempts." << std::endl;
+            return 1;
+        }
     }
 
     // Switch to user if running as root

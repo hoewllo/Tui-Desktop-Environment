@@ -63,7 +63,7 @@ target_include_directories(tdesktop PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(tdesktop PRIVATE PAM::PAM crypt)
+target_link_libraries(tdesktop PRIVATE PAM::PAM crypt util)
 
 if(USE_NCURSES)
     find_package(Curses REQUIRED)

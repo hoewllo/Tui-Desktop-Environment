@@ -38,13 +38,22 @@ bool EventLoop::poll(Event& ev, int timeout_ms) {
         ++it;
     }
 
-    if (readInput(ev)) return true;
+    // Check if data is available before reading,
+    // because VMIN=0 raw mode makes read() return 0
+    // when no data is available, which we must not
+    // confuse with EOF.
+    struct timeval tv_zero{0, 0};
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(stdin_fd_, &fds);
+    if (select(stdin_fd_ + 1, &fds, nullptr, nullptr, &tv_zero) > 0) {
+        if (readInput(ev)) return true;
+    }
 
     struct timeval tv;
     tv.tv_sec = timeout_ms / 1000;
     tv.tv_usec = (timeout_ms % 1000) * 1000;
 
-    fd_set fds;
     FD_ZERO(&fds);
     FD_SET(stdin_fd_, &fds);
 
@@ -209,6 +218,9 @@ MouseEvent EventLoop::parseMouse(const char* buf, size_t len) {
     if (end == 0) return ev;
 
     std::string params(buf + 2, end - 2);
+    // Strip SGR '<' prefix if present
+    if (!params.empty() && params[0] == '<')
+        params = params.substr(1);
     std::vector<int> vals;
     std::stringstream ss(params);
     std::string item;

@@ -36,7 +36,12 @@ PAMAuth::PAMAuth() = default;
 PAMAuth::~PAMAuth() = default;
 
 bool PAMAuth::init() {
-    // Check if running as root - PAM works regardless
+    // Check if PAM service config exists
+    std::string path = "/etc/pam.d/tdesktop";
+    if (access(path.c_str(), R_OK) != 0) {
+        LOG_WARN("PAM service config not found at " + path);
+        return false;
+    }
     return true;
 }
 
