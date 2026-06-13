@@ -32,6 +32,7 @@ set(WIDGET_SOURCES
     widgets/textbox.cpp
     widgets/listbox.cpp
     widgets/menu.cpp
+    widgets/regeditor.cpp
 )
 
 set(NOTIFICATION_SOURCES
@@ -43,6 +44,7 @@ set(UTIL_SOURCES
     utils/config.cpp
     utils/logger.cpp
     utils/helpers.cpp
+    utils/registry.cpp
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

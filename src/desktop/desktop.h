@@ -11,6 +11,8 @@
 #include "launcher.h"
 #include "workspace.h"
 #include "command_panel.h"
+#include "../widgets/menu.h"
+#include "../widgets/regeditor.h"
 #include <memory>
 #include <functional>
 
@@ -55,6 +57,8 @@ private:
     Launcher launcher_;
     WorkspaceManager ws_mgr_;
     CommandPanel cmd_panel_;
+    Menu ctx_menu_;
+    RegEditor reg_editor_;
     KeyboardHandler keyboard_;
     MouseHandler mouse_;
 
@@ -63,6 +67,7 @@ private:
     int fps_timer_ = 0;
 
     void setupHotkeys();
+    void setupContextMenu();
     void drawDesktopBackground();
     void drawHelpPanel();
     void drawClock();

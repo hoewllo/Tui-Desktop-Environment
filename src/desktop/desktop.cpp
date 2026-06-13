@@ -4,12 +4,15 @@
 #include <ctime>
 #include <sstream>
 #include <iomanip>
+#include <cstdlib>
+#include <unistd.h>
 
 namespace tdesktop {
 
 Desktop::Desktop(Terminal& term, EventLoop& loop, ColorManager& colors)
     : term_(term), loop_(loop), colors_(colors),
-      taskbar_(wm_), ws_mgr_(wm_) {
+      taskbar_(wm_), ws_mgr_(wm_),
+      reg_editor_(term, colors) {
 }
 
 Desktop::~Desktop() {
@@ -26,6 +29,7 @@ bool Desktop::init() {
 
     mouse_.init();
     cmd_panel_.init();
+    setupContextMenu();
 
     // Handle resize
     term_.onResize([this](TermSize size) {
@@ -163,10 +167,32 @@ void Desktop::render() {
         renderer_->drawText(2, rows - 1, fps);
     }
 
+    // Context menu (topmost)
+    if (ctx_menu_.isVisible()) {
+        ctx_menu_.draw(*renderer_);
+    }
+
+    // Registry editor (topmost)
+    if (reg_editor_.isVisible()) {
+        reg_editor_.draw(*renderer_);
+    }
+
     renderer_->present();
 }
 
 void Desktop::handleKeyEvent(const KeyEvent& ev) {
+    // Registry editor gets highest priority
+    if (reg_editor_.isVisible()) {
+        reg_editor_.handleKey(ev);
+        return;
+    }
+
+    // Context menu gets priority when open
+    if (ctx_menu_.isVisible()) {
+        ctx_menu_.handleKey(ev);
+        return;
+    }
+
     // Command panel gets priority when open
     if (cmd_panel_.isOpen()) {
         cmd_panel_.handleKey(ev);
@@ -185,6 +211,17 @@ void Desktop::handleKeyEvent(const KeyEvent& ev) {
 void Desktop::handleMouseEvent(const MouseEvent& ev) {
     mouse_.handleMouse(ev);
 
+    // Registry editor swallows all mouse when open
+    if (reg_editor_.isVisible()) {
+        return;
+    }
+
+    // Context menu gets priority when open
+    if (ctx_menu_.isVisible()) {
+        ctx_menu_.handleClick(ev.x, ev.y);
+        return;
+    }
+
     if (launcher_.isVisible()) {
         launcher_.handleClick(ev.x, ev.y);
         return;
@@ -194,6 +231,12 @@ void Desktop::handleMouseEvent(const MouseEvent& ev) {
 
     // Check taskbar click
     if (taskbar_.handleClick(ev.x, ev.y)) return;
+
+    // Right-click on desktop opens context menu
+    if (ev.button == MouseEvent::Right && ev.type == MouseEvent::Press) {
+        ctx_menu_.show(ev.x, ev.y);
+        return;
+    }
 
     // Check window click
     auto* win = wm_.getWindowAt(ev.x, ev.y);
@@ -345,6 +388,44 @@ void Desktop::drawClock() {
 
 void Desktop::updateClock() {
     drawClock();
+}
+
+void Desktop::setupContextMenu() {
+    ctx_menu_.addItem("Terminal", [this]() {
+        pid_t pid = fork();
+        if (pid == 0) {
+            setsid();
+            const char* shell = getenv("SHELL");
+            if (!shell) shell = "/bin/bash";
+            execl(shell, shell, nullptr);
+            _exit(1);
+        }
+    }, "Ctrl+T");
+
+    ctx_menu_.addItem("Launcher", [this]() {
+        launcher_.toggle();
+    }, "Super");
+
+    ctx_menu_.addSeparator();
+
+    ctx_menu_.addItem("Help", [this]() {
+        help_visible_ = true;
+    }, "Ctrl+H");
+
+    ctx_menu_.addItem("Command Panel", [this]() {
+        cmd_panel_.toggle();
+    }, "F12");
+
+    ctx_menu_.addSeparator();
+
+    ctx_menu_.addItem("Registry Editor", [this]() {
+        reg_editor_.show();
+    }, "");
+
+    ctx_menu_.addItem("Quit", [this]() {
+        running_ = false;
+        loop_.quit();
+    }, "Ctrl+Q");
 }
 
 } // namespace tdesktop

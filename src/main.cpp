@@ -11,6 +11,7 @@
 #include "notification/dbus_listener.h"
 #include "utils/logger.h"
 #include "utils/config.h"
+#include "utils/registry.h"
 #include "input/term_detect.h"
 #include "utils/helpers.h"
 #include <iostream>
@@ -310,6 +311,9 @@ int main(int argc, char* argv[]) {
     // Hide cursor
     term.showCursor(false);
     term.clearScreen();
+
+    // Initialize registry
+    Registry::instance().load();
 
     // Initialize desktop
     Desktop desktop(term, loop, colors);
